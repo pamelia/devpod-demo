@@ -49,7 +49,6 @@ pillow>=10.0.0
 imageio>=2.31.0
 
 # Distributed training helpers
-deepspeed>=0.9.0
 fairscale>=0.4.13
 
 # Configuration management
@@ -58,4 +57,4 @@ omegaconf>=2.3.0
 
 # Model optimization
 onnx>=1.14.0
-onnxruntime-gpu>=1.15.0
+onnxruntime>=1.15.0
