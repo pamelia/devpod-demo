@@ -15,7 +15,7 @@ This project demonstrates how to use **DevPod inside a Kubernetes cluster** for 
 
 ```
 ┌─────────────────────────────────────────┐
-│ CoreWeave Kubernetes Cluster           │
+│ CoreWeave Kubernetes Cluster            │
 ├─────────────────────────────────────────┤
 │                                         │
 │  ┌─────────────────┐  ┌───────────────┐ │
@@ -26,19 +26,19 @@ This project demonstrates how to use **DevPod inside a Kubernetes cluster** for 
 │  │ - ARM64/AMD64   │  │ - Multi-arch  │ │
 │  └─────────────────┘  └───────────────┘ │
 │           │                     │       │
-│  ┌─────────────────────────────────────┐ │
-│  │        Persistent Volumes           │ │
-│  │ - /workspace (code)                 │ │
-│  │ - /data (datasets)                  │ │
-│  │ - /outputs (models/logs)            │ │
-│  │ - /cache (pip/huggingface)          │ │
-│  └─────────────────────────────────────┘ │
+│  ┌────────────────────────────────────┐ │
+│  │        Persistent Volumes          │ │
+│  │ - /workspace (code)                │ │
+│  │ - /data (datasets)                 │ │
+│  │ - /outputs (models/logs)           │ │
+│  │ - /cache (pip/huggingface)         │ │
+│  └────────────────────────────────────┘ │
 └─────────────────────────────────────────┘
-              │
-    ┌─────────────────┐
-    │   macOS/Zed     │
-    │  SSH Client     │
-    └─────────────────┘
+                    │
+          ┌─────────────────┐
+          │   macOS/Zed     │
+          │  SSH Client     │
+          └─────────────────┘
 ```
 
 ## 🚀 Quick Start
@@ -99,6 +99,9 @@ Host ml-dev
   Port 2222
   User dev
   IdentityFile ~/.ssh/id_ed25519
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  LogLevel ERROR
 ```
 
 Connect:
@@ -134,8 +137,7 @@ devpod-demo/
 ├── docker/
 │   ├── Dockerfile              # Minimal SSH + dev user setup (uses CoreWeave PyTorch base)
 │   ├── start-dev.sh            # Container startup script
-
-│   └── .dockerignore          # Keep builds clean
+│   └── .dockerignore           # Keep builds clean
 ├── k8s/                        # Generated manifests (don't edit directly!)
 │   ├── 01-storage.yaml         # PVCs for workspace/data/outputs/cache
 │   ├── 02-dev-statefulset.yaml # Development StatefulSet with SSH + 1 GPU
@@ -322,6 +324,11 @@ kubectl describe pod ml-dev-0 -n ml | grep "Node:\|Image:"
 
 ### SSH Connection Issues
 
+The SSH config above includes options to handle frequently changing host keys (common when pods are recreated):
+- `StrictHostKeyChecking no` - Automatically accepts new host keys
+- `UserKnownHostsFile /dev/null` - Doesn't store host keys
+- `LogLevel ERROR` - Suppresses host key warnings
+
 ```bash
 # Check port-forward status
 ./port-forward.sh status
@@ -337,6 +344,9 @@ kubectl logs -n ml ml-dev-0
 
 # Manual port-forward if needed
 kubectl port-forward -n ml svc/ml-dev 2222:22 8888:8888 6006:6006
+
+# If you still get host key errors, you can also clear the known_hosts entry:
+ssh-keygen -R "[localhost]:2222"
 ```
 
 ### GPU Issues
@@ -401,7 +411,7 @@ kubectl apply -f k8s/02-dev-statefulset.yaml
 
 ### Add Python Packages
 
-The CoreWeave PyTorch base image includes most ML packages you'll need (PyTorch, transformers, etc.). 
+The CoreWeave PyTorch base image includes most ML packages you'll need (PyTorch, transformers, etc.).
 
 For additional packages, add them to the Dockerfile and rebuild the image:
 

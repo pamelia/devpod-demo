@@ -73,6 +73,9 @@ start_port_forward() {
         echo "    Port 2222"
         echo "    User dev"
         echo "    IdentityFile ~/.ssh/id_ed25519"
+        echo "    StrictHostKeyChecking no"
+        echo "    UserKnownHostsFile /dev/null"
+        echo "    LogLevel ERROR"
         echo
         echo "Services:"
         echo "  Jupyter:     http://localhost:8888"

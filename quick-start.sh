@@ -149,6 +149,9 @@ show_next_steps() {
     echo "     Port 2222"
     echo "     User dev"
     echo "     IdentityFile ~/.ssh/id_ed25519"
+    echo "     StrictHostKeyChecking no"
+    echo "     UserKnownHostsFile /dev/null"
+    echo "     LogLevel ERROR"
     echo
     echo "3. Connect with Zed:"
     echo "   File → Open → Remote via SSH → dev@ml-dev:/workspace"
