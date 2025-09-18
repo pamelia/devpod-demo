@@ -436,29 +436,6 @@ Regenerate and apply:
 kubectl apply -f k8s/01-storage.yaml
 ```
 
-## 🔐 Security Considerations
-
-- SSH access is key-based only (no passwords)
-- Pods are scheduled only on GPU nodes with proper resource limits
-- Uses namespace isolation (`ml` namespace)
-- Private container registry recommended for production
-- SSH keys are stored as Kubernetes secrets
-- Consider NetworkPolicy to restrict SSH access by IP
-
-## 📊 Resource Requirements
-
-### Minimum Requirements
-- **CPU**: 2 cores per dev pod
-- **Memory**: 8Gi per dev pod
-- **GPU**: 1x NVIDIA GPU per dev pod
-- **Storage**: 50Gi workspace + 500Gi datasets + 200Gi outputs + 100Gi cache
-
-### Recommended for Production
-- **CPU**: 4-8 cores per dev pod
-- **Memory**: 16-32Gi per dev pod
-- **GPU**: 1-2x GPUs per dev pod
-- **Storage**: Larger PVCs based on dataset size
-
 ## 📚 Next Steps
 
 ### Quick Start Checklist
