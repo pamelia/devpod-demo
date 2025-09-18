@@ -37,7 +37,7 @@ This project demonstrates how to use **DevPod inside a Kubernetes cluster** for 
               │
     ┌─────────────────┐
     │   macOS/Zed     │
-    │  SSH Client     │ 
+    │  SSH Client     │
     └─────────────────┘
 ```
 
@@ -288,7 +288,7 @@ kubectl apply -f k8s/03-training-job.yaml
 # List jobs
 kubectl get jobs -n ml
 
-# Watch job logs  
+# Watch job logs
 kubectl logs -f job/pytorch-train-8gpu -n ml
 
 # Get pod details
@@ -451,22 +451,11 @@ kubectl apply -f k8s/01-storage.yaml
 - SSH keys are stored as Kubernetes secrets
 - Consider NetworkPolicy to restrict SSH access by IP
 
-## 🚀 Production Considerations
-
-- **Use Helm charts** for easier management across environments
-- **Implement backup strategies** for PVCs (workspace, datasets, outputs)
-- **Set up monitoring** (Prometheus/Grafana) for resource usage
-- **Configure log aggregation** (ELK stack, Loki)
-- **Use RBAC** for proper access control
-- **VPN or bastion host** for secure remote access instead of port-forward
-- **Resource quotas** to prevent resource exhaustion
-- **Pod security policies** for enhanced security
-
 ## 📊 Resource Requirements
 
 ### Minimum Requirements
 - **CPU**: 2 cores per dev pod
-- **Memory**: 8Gi per dev pod  
+- **Memory**: 8Gi per dev pod
 - **GPU**: 1x NVIDIA GPU per dev pod
 - **Storage**: 50Gi workspace + 500Gi datasets + 200Gi outputs + 100Gi cache
 
@@ -476,14 +465,6 @@ kubectl apply -f k8s/01-storage.yaml
 - **GPU**: 1-2x GPUs per dev pod
 - **Storage**: Larger PVCs based on dataset size
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Test on both AMD64 and ARM64 if possible
-4. Update documentation for any architecture-specific changes
-5. Submit a pull request
-
 ## 📚 Next Steps
 
 ### Quick Start Checklist
@@ -492,17 +473,6 @@ kubectl apply -f k8s/01-storage.yaml
 - [ ] Run `./test-gpu.sh multigpu` to test distributed training
 - [ ] SSH into dev pod and start developing: `ssh ml-dev`
 - [ ] Create your own training scripts in `/workspace`
-
-### Advanced Setup
-1. **Multi-Node Training**: Extend to multi-node distributed training with Kubernetes jobs
-2. **Experiment Tracking**: Integrate with MLflow, Weights & Biases, or Neptune
-3. **Data Pipeline**: Add data preprocessing and validation jobs
-4. **CI/CD Integration**: Automate image builds and deployments
-5. **Monitoring**: Add resource monitoring and alerting
-
-## 📄 License
-
-MIT License - see LICENSE file for details.
 
 ---
 
