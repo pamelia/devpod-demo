@@ -128,19 +128,20 @@ EOF
 generate_dev_pod() {
     log_info "Generating development pod manifest..."
 
-    cat > "${SCRIPT_DIR}/k8s/02-dev-pod.yaml" << EOF
+    cat > "${SCRIPT_DIR}/k8s/02-dev-statefulset.yaml" << EOF
 # Generated dev pod manifest - DO NOT EDIT MANUALLY
 # Edit config.env and run generate-manifests.sh instead
 
-# Development pod with SSH access and GPU support
+# Development StatefulSet with SSH access and GPU support
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: ml-dev
   namespace: ${NAMESPACE}
   labels:
     app: ml-dev
 spec:
+  serviceName: ml-dev
   replicas: 1
   selector:
     matchLabels:
@@ -150,90 +151,89 @@ spec:
       labels:
         app: ml-dev
     spec:
-      # Uncomment to pin to a specific node with GPUs
-      # nodeSelector:
-      #   kubernetes.io/hostname: your-gpu-node
-      #   gpu: "true"
+      # Schedule on GPU nodes
+      nodeSelector:
+        node.coreweave.cloud/class: gpu
 
       containers:
-      - name: dev
-        image: ${FULL_IMAGE}
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 22
-          name: ssh
-        - containerPort: 8888
-          name: jupyter
-        - containerPort: 6006
-          name: tensorboard
+        - name: dev
+          image: ${FULL_IMAGE}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 22
+              name: ssh
+            - containerPort: 8888
+              name: jupyter
+            - containerPort: 6006
+              name: tensorboard
 
-        env:
-        # Make all GPUs visible by default (adjust as needed)
-        - name: NVIDIA_VISIBLE_DEVICES
-          value: "all"
-        - name: PYTHONPATH
-          value: "${WORKSPACE_PATH}"
+          env:
+            # Make all GPUs visible by default (adjust as needed)
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: PYTHONPATH
+              value: "/workspace"
 
-        resources:
-          requests:
-            cpu: "${DEFAULT_CPU_REQUEST}"
-            memory: "${DEFAULT_MEMORY_REQUEST}"
-            # Request 1 GPU for interactive development
-            nvidia.com/gpu: ${DEFAULT_DEV_GPU_LIMIT}
-          limits:
-            cpu: "8"
-            memory: "32Gi"
-            # Limit to 1 GPU for dev work (training jobs can use more)
-            nvidia.com/gpu: ${DEFAULT_DEV_GPU_LIMIT}
+          resources:
+            requests:
+              cpu: "${DEFAULT_CPU_REQUEST}"
+              memory: "${DEFAULT_MEMORY_REQUEST}"
+              # Request 1 GPU for interactive development
+              nvidia.com/gpu: ${DEFAULT_DEV_GPU_LIMIT}
+            limits:
+              cpu: "8"
+              memory: "32Gi"
+              # Limit to 1 GPU for dev work (training jobs can use more)
+              nvidia.com/gpu: ${DEFAULT_DEV_GPU_LIMIT}
 
-        volumeMounts:
-        # Persistent workspace - your code lives here
-        - name: workspace
-          mountPath: ${WORKSPACE_PATH}
-        # Datasets mount
-        - name: datasets
-          mountPath: ${DATA_PATH}
-        # Outputs mount
-        - name: outputs
-          mountPath: ${OUTPUTS_PATH}
-        # Cache mount for pip, huggingface, etc
-        - name: cache
-          mountPath: /home/${DEV_USER}/.cache
-        # SSH keys from secret
-        - name: ssh-keys
-          mountPath: /ssh-keys
-          readOnly: true
+          volumeMounts:
+            # Persistent workspace - your code lives here
+            - name: workspace
+              mountPath: ${WORKSPACE_PATH}
+            # Datasets mount
+            - name: datasets
+              mountPath: ${DATA_PATH}
+            # Outputs mount
+            - name: outputs
+              mountPath: ${OUTPUTS_PATH}
+            # Cache mount for pip, huggingface, etc
+            - name: cache
+              mountPath: /home/${DEV_USER}/.cache
+            # SSH keys from secret
+            - name: ssh-keys
+              mountPath: /ssh-keys
+              readOnly: true
 
-        # Health checks
-        livenessProbe:
-          tcpSocket:
-            port: 22
-          initialDelaySeconds: 30
-          periodSeconds: 30
+          # Health checks
+          livenessProbe:
+            tcpSocket:
+              port: 22
+            initialDelaySeconds: 30
+            periodSeconds: 30
 
-        readinessProbe:
-          tcpSocket:
-            port: 22
-          initialDelaySeconds: 10
-          periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 22
+            initialDelaySeconds: 10
+            periodSeconds: 10
 
       volumes:
-      - name: workspace
-        persistentVolumeClaim:
-          claimName: ml-workspace
-      - name: datasets
-        persistentVolumeClaim:
-          claimName: ml-datasets
-      - name: outputs
-        persistentVolumeClaim:
-          claimName: ml-outputs
-      - name: cache
-        persistentVolumeClaim:
-          claimName: ml-cache
-      - name: ssh-keys
-        secret:
-          secretName: ${SSH_KEY_SECRET}
-          defaultMode: 0600
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: ml-workspace
+        - name: datasets
+          persistentVolumeClaim:
+            claimName: ml-datasets
+        - name: outputs
+          persistentVolumeClaim:
+            claimName: ml-outputs
+        - name: cache
+          persistentVolumeClaim:
+            claimName: ml-cache
+        - name: ssh-keys
+          secret:
+            secretName: ${SSH_KEY_SECRET}
+            defaultMode: 0600
 
 ---
 # ClusterIP service for port-forward access
@@ -249,15 +249,15 @@ spec:
   selector:
     app: ml-dev
   ports:
-  - name: ssh
-    port: 22
-    targetPort: 22
-  - name: jupyter
-    port: 8888
-    targetPort: 8888
-  - name: tensorboard
-    port: 6006
-    targetPort: 6006
+    - name: ssh
+      port: 22
+      targetPort: 22
+    - name: jupyter
+      port: 8888
+      targetPort: 8888
+    - name: tensorboard
+      port: 6006
+      targetPort: 6006
 EOF
 }
 
@@ -289,10 +289,9 @@ spec:
     spec:
       restartPolicy: Never
 
-      # Uncomment to ensure job runs on your GPU node
-      # nodeSelector:
-      #   kubernetes.io/hostname: your-gpu-node
-      #   gpu: "true"
+      # Schedule on GPU nodes
+      nodeSelector:
+        node.coreweave.cloud/class: gpu
 
       containers:
       - name: trainer
@@ -676,7 +675,7 @@ deploy_k8s() {
 
     # Deploy dev pod
     log_info "Deploying development pod..."
-    kubectl apply -f ${SCRIPT_DIR}/k8s/02-dev-pod.yaml
+    kubectl apply -f ${SCRIPT_DIR}/k8s/02-dev-statefulset.yaml
 
     # Wait for deployment to be ready
     log_info "Waiting for development pod to be ready..."

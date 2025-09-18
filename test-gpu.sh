@@ -201,7 +201,7 @@ run_interactive() {
     POD_NAME=$(kubectl get pods -n ${NAMESPACE} -l app=ml-dev -o jsonpath='{.items[0].metadata.name}')
 
     if [[ -z "$POD_NAME" ]]; then
-        log_error "Dev pod not found. Deploy it first with: kubectl apply -f k8s/02-dev-pod.yaml"
+        log_error "Dev pod not found. Deploy it first with: kubectl apply -f k8s/02-dev-statefulset.yaml"
         exit 1
     fi
 

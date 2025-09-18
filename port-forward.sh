@@ -36,7 +36,7 @@ check_pod_ready() {
 
     if ! kubectl get pods -n ${NAMESPACE} -l app=ml-dev | grep -q Running; then
         log_error "Development pod is not running. Deploy it first with:"
-        echo "  kubectl apply -f k8s/02-dev-pod.yaml"
+        echo "  kubectl apply -f k8s/02-dev-statefulset.yaml"
         exit 1
     fi
 

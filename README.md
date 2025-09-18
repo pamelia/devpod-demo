@@ -14,7 +14,7 @@ This project demonstrates how to use **DevPod inside a Kubernetes cluster** for 
 
 ```
 ┌─────────────────────────────────────────┐
-│ Kubernetes Single Node (8x L40S GPUs)  │
+│ Kubernetes Single Node (8x GPUs)       │
 ├─────────────────────────────────────────┤
 │                                         │
 │  ┌─────────────────┐  ┌───────────────┐ │
@@ -138,7 +138,7 @@ devpod-demo/
 │   └── .dockerignore          # Keep builds clean
 ├── k8s/                        # Generated manifests (don't edit directly)
 │   ├── 01-storage.yaml         # PVCs for workspace/data/outputs/cache
-│   ├── 02-dev-pod.yaml         # Development pod with SSH + 1 GPU
+│   ├── 02-dev-statefulset.yaml # Development StatefulSet with SSH + 1 GPU
 │   └── 03-training-job.yaml    # Training job templates (1/8 GPU, CPU)
 └── examples/
     ├── hello_gpu.py            # Simple GPU hello world test
@@ -196,7 +196,7 @@ make build-push REGISTRY=ghcr.io ORG=your-org IMAGE_NAME=pytorch-dev
 
 ```bash
 kubectl apply -f k8s/01-storage.yaml
-kubectl apply -f k8s/02-dev-pod.yaml
+kubectl apply -f k8s/02-dev-statefulset.yaml
 ```
 
 ### 6. Connect via Port-Forward
@@ -358,7 +358,7 @@ kubectl get events -n ml --sort-by='.lastTimestamp'
 
 ### Adjust GPU Allocation
 
-Edit `k8s/02-dev-pod.yaml`:
+Edit `k8s/02-dev-statefulset.yaml`:
 ```yaml
 resources:
   limits:
