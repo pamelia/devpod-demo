@@ -1,0 +1,60 @@
+# Generated storage manifest - DO NOT EDIT MANUALLY
+# Edit config.env and run generate-manifests.sh instead
+
+# Namespace for ML workloads
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ml
+---
+# Persistent workspace - your code lives here, survives pod restarts
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ml-workspace
+  namespace: ml
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 50Gi
+  # storageClassName: local-path  # uncomment if using k3s default
+---
+# Datasets storage - mount your training data here
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ml-datasets
+  namespace: ml
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 500Gi
+  # storageClassName: local-path
+---
+# Outputs storage - model checkpoints, logs, artifacts
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ml-outputs
+  namespace: ml
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 200Gi
+  # storageClassName: local-path
+---
+# Shared cache - pip cache, huggingface models, etc
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ml-cache
+  namespace: ml
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 100Gi
+  # storageClassName: local-path

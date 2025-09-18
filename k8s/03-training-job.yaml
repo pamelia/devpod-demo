@@ -1,0 +1,258 @@
+# Generated training job manifest - DO NOT EDIT MANUALLY
+# Edit config.env and run generate-manifests.sh instead
+
+# Training job template for single-node multi-GPU PyTorch training
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pytorch-train-8gpu
+  namespace: ml
+  labels:
+    app: pytorch-training
+    gpus: "8"
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 86400  # Keep job for 24h after completion
+  template:
+    metadata:
+      labels:
+        app: pytorch-training
+        gpus: "8"
+    spec:
+      restartPolicy: Never
+
+      # Uncomment to ensure job runs on your GPU node
+      # nodeSelector:
+      #   kubernetes.io/hostname: your-gpu-node
+      #   gpu: "true"
+
+      containers:
+      - name: trainer
+        image: ghcr.io/pamelia/devpod-demo:latest
+
+        command: ["bash", "-c"]
+        args:
+        - |
+          set -e
+          echo "Starting PyTorch DDP training with $GPUS GPUs"
+          echo "CUDA devices visible: $CUDA_VISIBLE_DEVICES"
+          echo "Available GPUs: $(python -c 'import torch; print(torch.cuda.device_count())')"
+
+          # Run distributed training
+          torchrun \
+            --standalone \
+            --nnodes=1 \
+            --nproc_per_node=$GPUS \
+            /workspace/hello_gpu.py \
+            --data-dir /data \
+            --output-dir /outputs \
+            --epochs 10 \
+            --batch-size 32 \
+            --lr 0.001
+
+        env:
+        - name: GPUS
+          value: "8"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0,1,2,3,4,5,6,7"
+        - name: NCCL_DEBUG
+          value: "INFO"
+        - name: NCCL_P2P_DISABLE
+          value: "0"  # Enable P2P for better performance
+        - name: NCCL_IB_DISABLE
+          value: "1"  # Disable InfiniBand if not available
+        - name: PYTHONPATH
+          value: "/workspace"
+        - name: WANDB_MODE
+          value: "offline"  # Set to "online" if you want to log to wandb
+
+        resources:
+          requests:
+            cpu: "16"
+            memory: "64Gi"
+            nvidia.com/gpu: 8
+          limits:
+            cpu: "32"
+            memory: "128Gi"
+            nvidia.com/gpu: 8
+
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+        - name: datasets
+          mountPath: /data
+          readOnly: true
+        - name: outputs
+          mountPath: /outputs
+        - name: cache
+          mountPath: /root/.cache
+
+      volumes:
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: ml-workspace
+      - name: datasets
+        persistentVolumeClaim:
+          claimName: ml-datasets
+      - name: outputs
+        persistentVolumeClaim:
+          claimName: ml-outputs
+      - name: cache
+        persistentVolumeClaim:
+          claimName: ml-cache
+
+---
+# Single GPU training job for experimentation
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pytorch-train-1gpu
+  namespace: ml
+  labels:
+    app: pytorch-training
+    gpus: "1"
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600  # Keep job for 1h after completion
+  template:
+    metadata:
+      labels:
+        app: pytorch-training
+        gpus: "1"
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: trainer
+        image: ghcr.io/pamelia/devpod-demo:latest
+
+        command: ["bash", "-c"]
+        args:
+        - |
+          set -e
+          echo "Starting single GPU training"
+          echo "CUDA device: $CUDA_VISIBLE_DEVICES"
+
+          python /workspace/hello_gpu.py \
+            --data-dir /data \
+            --output-dir /outputs \
+            --epochs 10 \
+            --batch-size 32 \
+            --lr 0.001
+
+        env:
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
+        - name: PYTHONPATH
+          value: "/workspace"
+
+        resources:
+          requests:
+            cpu: "4"
+            memory: "16Gi"
+            nvidia.com/gpu: 1
+          limits:
+            cpu: "8"
+            memory: "32Gi"
+            nvidia.com/gpu: 1
+
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+        - name: datasets
+          mountPath: /data
+          readOnly: true
+        - name: outputs
+          mountPath: /outputs
+        - name: cache
+          mountPath: /root/.cache
+
+      volumes:
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: ml-workspace
+      - name: datasets
+        persistentVolumeClaim:
+          claimName: ml-datasets
+      - name: outputs
+        persistentVolumeClaim:
+          claimName: ml-outputs
+      - name: cache
+        persistentVolumeClaim:
+          claimName: ml-cache
+
+---
+# CPU-only training job for testing
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pytorch-train-cpu
+  namespace: ml
+  labels:
+    app: pytorch-training
+    gpus: "0"
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 1800  # Keep job for 30min after completion
+  template:
+    metadata:
+      labels:
+        app: pytorch-training
+        gpus: "0"
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: trainer
+        image: ghcr.io/pamelia/devpod-demo:latest
+
+        command: ["bash", "-c"]
+        args:
+        - |
+          set -e
+          echo "Starting CPU-only training"
+
+          python /workspace/hello_gpu.py \
+            --data-dir /data \
+            --output-dir /outputs \
+            --epochs 5 \
+            --batch-size 8 \
+            --lr 0.001 \
+            --device cpu
+
+        env:
+        - name: PYTHONPATH
+          value: "/workspace"
+
+        resources:
+          requests:
+            cpu: "8"
+            memory: "16Gi"
+          limits:
+            cpu: "16"
+            memory: "32Gi"
+
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+        - name: datasets
+          mountPath: /data
+          readOnly: true
+        - name: outputs
+          mountPath: /outputs
+        - name: cache
+          mountPath: /root/.cache
+
+      volumes:
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: ml-workspace
+      - name: datasets
+        persistentVolumeClaim:
+          claimName: ml-datasets
+      - name: outputs
+        persistentVolumeClaim:
+          claimName: ml-outputs
+      - name: cache
+        persistentVolumeClaim:
+          claimName: ml-cache
