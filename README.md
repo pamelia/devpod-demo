@@ -131,12 +131,10 @@ devpod-demo/
 ├── port-forward.sh              # Port-forward helper for SSH access
 ├── quick-start.sh               # Quick deployment script
 ├── run-job.sh                   # Training job submission helper
-├── test-gpu.sh                  # GPU test runner
 ├── docker/
-│   ├── Dockerfile              # Multi-arch PyTorch + SSH image
+│   ├── Dockerfile              # Minimal SSH + dev user setup (uses CoreWeave PyTorch base)
 │   ├── start-dev.sh            # Container startup script
-│   ├── requirements.txt        # Python dependencies
-│   ├── Makefile               # Docker build helpers
+
 │   └── .dockerignore          # Keep builds clean
 ├── k8s/                        # Generated manifests (don't edit directly!)
 │   ├── 01-storage.yaml         # PVCs for workspace/data/outputs/cache
@@ -179,7 +177,7 @@ kubectl create secret generic ml-dev-ssh-keys \
 
 ### 4. Build Container Image
 
-The setup script handles multi-platform builds automatically. For manual builds:
+The container uses CoreWeave's PyTorch image as base with PyTorch 2.8.0 + CUDA 12.9 support. The setup script handles multi-platform builds automatically. For manual builds:
 
 ```bash
 cd docker/
@@ -211,30 +209,17 @@ ssh dev@localhost -p 2222
 ### Quick GPU Tests
 
 ```bash
-# Test single GPU
-./test-gpu.sh hello
-
-# Test all 8 GPUs with distributed training
-./test-gpu.sh multigpu
-
-# Test CPU-only mode
-./test-gpu.sh cpu
-
-# Run test interactively in dev pod
-./test-gpu.sh interactive
+# Test GPU functionality in dev pod
+ssh ml-dev
+cd /workspace
+python hello_gpu.py
 ```
 
 ### View Test Results
 
 ```bash
-# List test jobs
-./test-gpu.sh list
-
-# Show logs
-./test-gpu.sh logs hello-gpu
-
-# Clean up test jobs
-./test-gpu.sh cleanup
+# Or submit training jobs using run-job.sh
+./run-job.sh --help
 ```
 
 ## 🏃‍♂️ Running Training Jobs
@@ -415,14 +400,23 @@ kubectl apply -f k8s/02-dev-statefulset.yaml
 
 ### Add Python Packages
 
-Edit `docker/requirements.txt` and rebuild:
+The CoreWeave PyTorch base image includes most ML packages you'll need (PyTorch, transformers, etc.). For additional packages, install them directly in the dev pod:
+
+```bash
+# SSH into dev pod
+ssh ml-dev
+
+# Install packages (they persist in your workspace)
+pip install --user package-name
+
+# Or install globally if needed
+sudo pip install package-name
+```
+
+If you need packages in the base image, modify the Dockerfile and rebuild:
 ```bash
 # Use setup.sh for interactive rebuild
 ./setup.sh  # Select option 3: Build and update image only
-
-# Or manual rebuild
-cd docker/
-docker buildx build --platform linux/amd64,linux/arm64 --push -t ghcr.io/your-org/devpod-demo:latest .
 
 # Restart pod with new image
 kubectl rollout restart statefulset/ml-dev -n ml
@@ -469,9 +463,8 @@ kubectl apply -f k8s/01-storage.yaml
 
 ### Quick Start Checklist
 - [ ] Run `./setup.sh` with your registry settings
-- [ ] Run `./test-gpu.sh hello` to verify single GPU works
-- [ ] Run `./test-gpu.sh multigpu` to test distributed training
-- [ ] SSH into dev pod and start developing: `ssh ml-dev`
+- [ ] SSH into dev pod and test GPU: `ssh ml-dev`, then `python /workspace/hello_gpu.py`
+- [ ] Start developing: your code in `/workspace` persists across pod restarts
 - [ ] Create your own training scripts in `/workspace`
 
 ---

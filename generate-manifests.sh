@@ -155,10 +155,29 @@ spec:
       nodeSelector:
         node.coreweave.cloud/class: gpu
 
+      # Security context for GPU access - match working Slurm config
+      securityContext:
+        seccompProfile:
+          localhostProfile: profiles/enroot
+          type: Localhost
+
       containers:
         - name: dev
           image: ${FULL_IMAGE}
           imagePullPolicy: Always
+
+          # Security context for container - match working Slurm config
+          securityContext:
+            capabilities:
+              add:
+                - SYS_NICE
+                - SYS_ADMIN
+                - SYS_PTRACE
+                - SYSLOG
+            appArmorProfile:
+              localhostProfile: enroot
+              type: Localhost
+
           ports:
             - containerPort: 22
               name: ssh
@@ -171,6 +190,10 @@ spec:
             # Make all GPUs visible by default (adjust as needed)
             - name: NVIDIA_VISIBLE_DEVICES
               value: "all"
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: "all"
+            - name: NVIDIA_GDRCOPY
+              value: "enabled"
             - name: PYTHONPATH
               value: "/workspace"
 
