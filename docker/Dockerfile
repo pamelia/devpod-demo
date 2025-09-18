@@ -1,5 +1,5 @@
 # PyTorch development container with SSH access for remote editing
-FROM nvcr.io/nvidia/pytorch:24.10-py3
+FROM ghcr.io/coreweave/ml-containers/torch:es-ubuntu-24-dev-2dd65d0-base-cuda12.9.1-ubuntu24.04-torch2.8.0-vision0.23.0-audio2.8.0-abi1
 
 # Install system dependencies
 RUN apt-get update && \
@@ -20,17 +20,14 @@ RUN apt-get update && \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Create dev user and setup SSH
+# Create dev user and setup SSH (use next available UID)
 RUN mkdir -p /var/run/sshd /home/dev/.ssh && \
-    useradd -m -s /bin/bash -u 1000 dev && \
+    useradd -m -s /bin/bash dev && \
     echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/dev && \
     chmod 0440 /etc/sudoers.d/dev && \
     chown -R dev:dev /home/dev
 
-# Copy requirements.txt and install Python packages
-COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
-    rm /tmp/requirements.txt
+# Skip Python package installation - CoreWeave image has everything we need
 
 # Setup workspace directory
 RUN mkdir -p /workspace && chown -R dev:dev /workspace
