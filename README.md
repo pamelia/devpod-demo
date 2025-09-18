@@ -7,6 +7,7 @@ This project demonstrates how to use **DevPod inside a Kubernetes cluster** for 
 - **Persistent Development**: Your code lives in persistent storage, not in the container
 - **Remote Development**: SSH access for tools like Zed, VS Code Remote, or terminal
 - **GPU Access**: Full access to node GPUs for both interactive development and training jobs
+- **Multi-Architecture Support**: Works on both AMD64 and ARM64 GPU nodes (Grace Hopper)
 - **No Container Rebuilds**: Iterate on code without rebuilding/pushing containers
 - **Shared Resources**: Same data and output volumes across dev environment and training jobs
 
@@ -14,7 +15,7 @@ This project demonstrates how to use **DevPod inside a Kubernetes cluster** for 
 
 ```
 ┌─────────────────────────────────────────┐
-│ Kubernetes Single Node (8x GPUs)       │
+│ CoreWeave Kubernetes Cluster           │
 ├─────────────────────────────────────────┤
 │                                         │
 │  ┌─────────────────┐  ┌───────────────┐ │
@@ -22,6 +23,7 @@ This project demonstrates how to use **DevPod inside a Kubernetes cluster** for 
 │  │ - SSH Server    │  │ - 1, 4, 8 GPU │ │
 │  │ - PyTorch+CUDA  │  │ - Batch Jobs  │ │
 │  │ - 1 GPU         │  │ - Same PVCs   │ │
+│  │ - ARM64/AMD64   │  │ - Multi-arch  │ │
 │  └─────────────────┘  └───────────────┘ │
 │           │                     │       │
 │  ┌─────────────────────────────────────┐ │
@@ -43,8 +45,8 @@ This project demonstrates how to use **DevPod inside a Kubernetes cluster** for 
 
 ### Prerequisites
 
-- Kubernetes cluster (single node with GPUs)
-- `kubectl` configured 
+- Kubernetes cluster with GPU nodes (tested on CoreWeave)
+- `kubectl` configured with cluster access
 - Docker for building images
 - SSH key pair (`~/.ssh/id_ed25519`)
 
@@ -57,13 +59,13 @@ cd devpod-demo
 
 ### 2. Edit Configuration
 
-Edit `config.env` and set your GitHub organization:
+Edit `config.env` and set your container registry:
 
 ```bash
 # Container Registry Settings
 REGISTRY="ghcr.io"
 ORG="your-github-org"  # <-- Change this to your GitHub org
-IMAGE_NAME="pytorch-dev"
+IMAGE_NAME="devpod-demo"
 IMAGE_TAG="latest"
 ```
 
@@ -79,11 +81,11 @@ The setup script will:
 - Generate manifests with your registry settings
 - Verify prerequisites
 - Create SSH key secret in Kubernetes
-- Build the PyTorch+SSH container image
+- Build the multi-arch PyTorch+SSH container image
 - Deploy storage and development pod
 - Provide connection details
 
-### 2. Setup Port-Forwarding and SSH
+### 4. Setup Port-Forwarding and SSH
 
 Start port-forwarding:
 ```bash
@@ -104,11 +106,11 @@ Connect:
 ssh ml-dev
 ```
 
-### 3. Connect with Zed (macOS)
+### 5. Connect with Zed (macOS)
 
 First ensure port-forwarding is running, then in Zed: File → Open… → **Remote via SSH** → `dev@ml-dev:/workspace`
 
-### 4. Start Developing
+### 6. Start Developing
 
 Your persistent workspace is at `/workspace`. Code changes survive pod restarts.
 
@@ -124,19 +126,19 @@ python hello_gpu.py
 devpod-demo/
 ├── README.md                    # This file
 ├── config.env                   # Single configuration file (edit this!)
-├── setup.sh                     # Automated setup script
-├── run-job.sh                   # Easy training job submission
+├── setup.sh                     # Interactive setup script
 ├── generate-manifests.sh        # Generate manifests from config
 ├── port-forward.sh              # Port-forward helper for SSH access
-├── build-multiplatform.sh       # Multi-platform Docker builds
-├── test-gpu.sh                  # Simple GPU test runner
+├── quick-start.sh               # Quick deployment script
+├── run-job.sh                   # Training job submission helper
+├── test-gpu.sh                  # GPU test runner
 ├── docker/
-│   ├── Dockerfile              # PyTorch + SSH development image
+│   ├── Dockerfile              # Multi-arch PyTorch + SSH image
 │   ├── start-dev.sh            # Container startup script
 │   ├── requirements.txt        # Python dependencies
 │   ├── Makefile               # Docker build helpers
 │   └── .dockerignore          # Keep builds clean
-├── k8s/                        # Generated manifests (don't edit directly)
+├── k8s/                        # Generated manifests (don't edit directly!)
 │   ├── 01-storage.yaml         # PVCs for workspace/data/outputs/cache
 │   ├── 02-dev-statefulset.yaml # Development StatefulSet with SSH + 1 GPU
 │   └── 03-training-job.yaml    # Training job templates (1/8 GPU, CPU)
@@ -155,7 +157,7 @@ Edit `config.env` with your registry/org settings:
 # Change these values
 REGISTRY="ghcr.io"
 ORG="your-github-org"
-IMAGE_NAME="pytorch-dev"
+IMAGE_NAME="devpod-demo"
 ```
 
 ### 2. Generate Manifests
@@ -164,7 +166,7 @@ IMAGE_NAME="pytorch-dev"
 ./generate-manifests.sh --all
 ```
 
-This creates all K8s manifests with your configuration.
+This creates all K8s manifests with your configuration and proper GPU node scheduling.
 
 ### 3. Create SSH Key Secret
 
@@ -177,19 +179,12 @@ kubectl create secret generic ml-dev-ssh-keys \
 
 ### 4. Build Container Image
 
-For multi-platform builds (recommended):
-```bash
-# Build for both AMD64 and ARM64
-./build-multiplatform.sh push
+The setup script handles multi-platform builds automatically. For manual builds:
 
-# Or build specific platforms
-./build-multiplatform.sh --platforms linux/amd64 push
-```
-
-For single-platform builds:
 ```bash
 cd docker/
-make build-push REGISTRY=ghcr.io ORG=your-org IMAGE_NAME=pytorch-dev
+# Multi-platform build for both ARM64 and AMD64
+docker buildx build --platform linux/amd64,linux/arm64 --push -t ghcr.io/your-org/devpod-demo:latest .
 ```
 
 ### 5. Deploy Resources
@@ -242,13 +237,12 @@ ssh dev@localhost -p 2222
 ./test-gpu.sh cleanup
 ```
 
-## 🏃‍♂️ Running Training Jobs (Advanced)
+## 🏃‍♂️ Running Training Jobs
 
 ### Submit Single GPU Job
 
 ```bash
 kubectl apply -f - <<EOF
-# For custom training jobs, create your own training script
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -258,12 +252,16 @@ spec:
   template:
     spec:
       restartPolicy: Never
+      nodeSelector:
+        node.coreweave.cloud/class: gpu
       containers:
       - name: trainer
-        image: your-registry/pytorch-dev:latest
+        image: ghcr.io/your-org/devpod-demo:latest
         command: ["python", "/workspace/my_training_script.py"]
         args: ["--epochs", "10", "--batch-size", "32"]
         resources:
+          requests:
+            nvidia.com/gpu: 1
           limits:
             nvidia.com/gpu: 1
         volumeMounts:
@@ -300,7 +298,41 @@ kubectl get pods -n ml -l job-name=pytorch-train-8gpu
 ./run-job.sh logs pytorch-train-8gpu
 ```
 
+## 🔧 Multi-Architecture Support
+
+This project supports both AMD64 and ARM64 architectures:
+
+### Supported Platforms
+- **AMD64 (x86_64)**: Traditional GPU servers
+- **ARM64 (aarch64)**: Grace Hopper and other ARM-based GPU nodes
+
+### Key Features
+- **Automatic Architecture Detection**: The setup script detects your host architecture
+- **Multi-Platform Base Image**: Uses NVIDIA's multi-arch PyTorch containers
+- **Smart Scheduling**: Automatically schedules on GPU nodes using `node.coreweave.cloud/class: gpu`
+- **Cross-Architecture Development**: Develop on Apple Silicon, deploy to any GPU architecture
+
+### Base Image
+We use `nvcr.io/nvidia/pytorch:24.10-py3` which provides:
+- ✅ Multi-architecture support (AMD64 + ARM64)
+- ✅ CUDA 12.6 support
+- ✅ PyTorch 2.5 with GPU acceleration
+- ✅ Pre-optimized for NVIDIA GPUs
+
 ## 🐛 Troubleshooting
+
+### Architecture Issues
+
+```bash
+# Check node architecture and GPU availability
+kubectl get nodes -o custom-columns=NAME:.metadata.name,ARCH:.status.nodeInfo.architecture,GPU:.status.capacity.nvidia\.com/gpu
+
+# Verify pod is on correct architecture
+kubectl exec -n ml ml-dev-0 -- uname -m
+
+# Check if container matches node architecture
+kubectl describe pod ml-dev-0 -n ml | grep "Node:\|Image:"
+```
 
 ### SSH Connection Issues
 
@@ -315,7 +347,7 @@ kubectl get pods -n ml -l job-name=pytorch-train-8gpu
 kubectl get pods -n ml -l app=ml-dev
 
 # Get pod logs
-kubectl logs -n ml deployment/ml-dev
+kubectl logs -n ml ml-dev-0
 
 # Manual port-forward if needed
 kubectl port-forward -n ml svc/ml-dev 2222:22 8888:8888 6006:6006
@@ -325,10 +357,26 @@ kubectl port-forward -n ml svc/ml-dev 2222:22 8888:8888 6006:6006
 
 ```bash
 # Check GPU visibility in dev pod
-kubectl exec -n ml deployment/ml-dev -- nvidia-smi
+kubectl exec -n ml ml-dev-0 -- nvidia-smi
 
-# Check GPU allocation
-kubectl describe node <node-name> | grep nvidia.com/gpu
+# Check CUDA availability in Python
+kubectl exec -n ml ml-dev-0 -- python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}, Devices: {torch.cuda.device_count()}')"
+
+# Check GPU allocation on nodes
+kubectl describe nodes | grep -A 5 -B 5 nvidia.com/gpu
+```
+
+### Container Issues
+
+```bash
+# Check for exec format errors
+kubectl logs -n ml ml-dev-0
+
+# Verify image architecture
+docker buildx imagetools inspect ghcr.io/your-org/devpod-demo:latest
+
+# Pull and test image locally
+docker run --rm ghcr.io/your-org/devpod-demo:latest uname -m
 ```
 
 ### Storage Issues
@@ -338,129 +386,119 @@ kubectl describe node <node-name> | grep nvidia.com/gpu
 kubectl get pvc -n ml
 
 # Check available storage
-kubectl exec -n ml deployment/ml-dev -- df -h
-```
-
-### Training Job Issues
-
-```bash
-# Check job status
-kubectl describe job/<job-name> -n ml
-
-# Get job logs
-kubectl logs job/<job-name> -n ml
-
-# Check events
-kubectl get events -n ml --sort-by='.lastTimestamp'
+kubectl exec -n ml ml-dev-0 -- df -h
 ```
 
 ## 🎛️ Customization
 
+### GPU Node Scheduling
+The project automatically schedules pods on GPU nodes using:
+```yaml
+nodeSelector:
+  node.coreweave.cloud/class: gpu
+```
+
+For other clusters, edit `generate-manifests.sh` to change the nodeSelector.
+
 ### Adjust GPU Allocation
 
-Edit `k8s/02-dev-statefulset.yaml`:
-```yaml
-resources:
-  limits:
-    nvidia.com/gpu: 2  # Change from 1 to 2 GPUs
+Edit `config.env`:
+```bash
+DEFAULT_DEV_GPU_LIMIT="2"  # Change from 1 to 2 GPUs
+```
+
+Then regenerate manifests:
+```bash
+./generate-manifests.sh --all
+kubectl apply -f k8s/02-dev-statefulset.yaml
 ```
 
 ### Add Python Packages
 
 Edit `docker/requirements.txt` and rebuild:
 ```bash
-# Multi-platform build (recommended)
-./build-multiplatform.sh push
+# Use setup.sh for interactive rebuild
+./setup.sh  # Select option 3: Build and update image only
 
-# Or single platform
+# Or manual rebuild
 cd docker/
-make build-push  # Uses config.env settings automatically
+docker buildx build --platform linux/amd64,linux/arm64 --push -t ghcr.io/your-org/devpod-demo:latest .
 
-kubectl rollout restart deployment/ml-dev -n ml
+# Restart pod with new image
+kubectl rollout restart statefulset/ml-dev -n ml
 ```
 
 ### Change Storage Sizes
 
-Edit `k8s/01-storage.yaml`:
-```yaml
-resources:
-  requests:
-    storage: 1Ti  # Increase from 500Gi
+Edit `config.env`:
+```bash
+WORKSPACE_SIZE="100Gi"   # Increase workspace
+DATASETS_SIZE="1Ti"      # Increase dataset storage
+```
+
+Regenerate and apply:
+```bash
+./generate-manifests.sh --all
+kubectl apply -f k8s/01-storage.yaml
 ```
 
 ## 🔐 Security Considerations
 
 - SSH access is key-based only (no passwords)
+- Pods are scheduled only on GPU nodes with proper resource limits
+- Uses namespace isolation (`ml` namespace)
+- Private container registry recommended for production
+- SSH keys are stored as Kubernetes secrets
 - Consider NetworkPolicy to restrict SSH access by IP
-- Use private container registries for production
-- Regularly rotate SSH keys
-- Monitor resource usage and set appropriate limits
-- **Important**: Update `config.env` with your actual registry details before deploying
 
 ## 🚀 Production Considerations
 
-- Use Helm charts for easier management
-- Implement backup strategies for PVCs
-- Set up monitoring (Prometheus/Grafana)
-- Configure log aggregation
-- Use RBAC for proper access control
-- Consider using a service mesh for network policies
-- Use ingress controllers instead of port-forward for permanent access
-- Set up VPN or bastion host for secure remote access
+- **Use Helm charts** for easier management across environments
+- **Implement backup strategies** for PVCs (workspace, datasets, outputs)
+- **Set up monitoring** (Prometheus/Grafana) for resource usage
+- **Configure log aggregation** (ELK stack, Loki)
+- **Use RBAC** for proper access control
+- **VPN or bastion host** for secure remote access instead of port-forward
+- **Resource quotas** to prevent resource exhaustion
+- **Pod security policies** for enhanced security
 
-## 🏗️ Multi-Platform Builds
+## 📊 Resource Requirements
 
-This project supports building Docker images for multiple architectures:
+### Minimum Requirements
+- **CPU**: 2 cores per dev pod
+- **Memory**: 8Gi per dev pod  
+- **GPU**: 1x NVIDIA GPU per dev pod
+- **Storage**: 50Gi workspace + 500Gi datasets + 200Gi outputs + 100Gi cache
 
-### Quick Commands
-
-```bash
-# Build and push multi-platform (AMD64 + ARM64)
-./build-multiplatform.sh push
-
-# Build for AMD64 only (most GPU nodes)
-./build-multiplatform.sh --platforms linux/amd64 push
-
-# Build for local development
-./build-multiplatform.sh build-local
-
-# Inspect built image platforms
-./build-multiplatform.sh inspect
-```
-
-### Why Multi-Platform?
-
-- **Development on Apple Silicon** (ARM64) while deploying to **x86_64 GPU nodes**
-- **Flexibility** to run on different cluster architectures
-- **Future-proofing** for ARM-based GPU instances
-
-### Platform Support
-
-- `linux/amd64` - Most GPU nodes (NVIDIA, Intel)
-- `linux/arm64` - ARM-based nodes, Apple Silicon development
-
-## 📚 Next Steps
-
-### Quick Start Checklist
-- [ ] Run `./test-gpu.sh hello` to verify single GPU works
-- [ ] Run `./test-gpu.sh multigpu` to test all 8 GPUs  
-- [ ] SSH into dev pod and start developing: `ssh dev@ml-dev`
-- [ ] Create your own training scripts in `/workspace`
-
-### Advanced Setup
-1. **Helm Chart**: Convert manifests to a Helm chart for easier management
-2. **CI/CD Integration**: Automate multi-platform image builds and deployments
-3. **Multi-Node**: Extend to multi-node distributed training
-4. **Experiment Tracking**: Integrate with MLflow, Weights & Biases
-5. **Data Pipeline**: Add data preprocessing and validation jobs
+### Recommended for Production
+- **CPU**: 4-8 cores per dev pod
+- **Memory**: 16-32Gi per dev pod
+- **GPU**: 1-2x GPUs per dev pod
+- **Storage**: Larger PVCs based on dataset size
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
+3. Test on both AMD64 and ARM64 if possible
+4. Update documentation for any architecture-specific changes
 5. Submit a pull request
+
+## 📚 Next Steps
+
+### Quick Start Checklist
+- [ ] Run `./setup.sh` with your registry settings
+- [ ] Run `./test-gpu.sh hello` to verify single GPU works
+- [ ] Run `./test-gpu.sh multigpu` to test distributed training
+- [ ] SSH into dev pod and start developing: `ssh ml-dev`
+- [ ] Create your own training scripts in `/workspace`
+
+### Advanced Setup
+1. **Multi-Node Training**: Extend to multi-node distributed training with Kubernetes jobs
+2. **Experiment Tracking**: Integrate with MLflow, Weights & Biases, or Neptune
+3. **Data Pipeline**: Add data preprocessing and validation jobs
+4. **CI/CD Integration**: Automate image builds and deployments
+5. **Monitoring**: Add resource monitoring and alerting
 
 ## 📄 License
 
@@ -468,4 +506,4 @@ MIT License - see LICENSE file for details.
 
 ---
 
-**Happy coding!** 🚀 This setup gives you a robust, persistent ML development environment on Kubernetes that scales from experimentation to production training.
+**Happy coding!** 🚀 This setup gives you a robust, persistent, multi-architecture ML development environment on Kubernetes that scales from experimentation to production training.
