@@ -1,6 +1,8 @@
 # DevPod on Kubernetes for ML Development
 
-This project demonstrates how to use **DevPod inside a Kubernetes cluster** for PyTorch machine learning development, providing a persistent development environment that doesn't require rebuilding containers for code changes.
+> **⚠️ Important Note**: This project creates custom development environments in Kubernetes pods using standard Kubernetes resources. It is **not** related to or affiliated with the [DevPod project by Loft Labs](https://github.com/loft-sh/devpod). We use "DevPod" here in the generic sense of "a development pod" - a Kubernetes pod configured for development purposes.
+
+This project demonstrates how to use **development pods inside a Kubernetes cluster** for PyTorch machine learning development, providing a persistent development environment that doesn't require rebuilding containers for code changes.
 
 ## 🎯 What This Solves
 
