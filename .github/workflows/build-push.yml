@@ -33,17 +33,26 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=ref,event=tag
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Get short SHA
+        id: get-sha
+        run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Generate tags
+        id: tags
+        run: |
+          TAGS=""
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.get-sha.outputs.short_sha }}"
+          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/"* ]]; then
+            BRANCH=${GITHUB_REF#refs/heads/}
+            TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${BRANCH},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${BRANCH}-${{ steps.get-sha.outputs.short_sha }}"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${{ github.event.number }}"
+          elif [[ "${{ github.ref }}" == "refs/tags/"* ]]; then
+            TAG=${GITHUB_REF#refs/tags/}
+            TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          fi
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image
         id: build
@@ -52,18 +61,14 @@ jobs:
           context: ./docker
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Show generated tags
         run: |
           echo "Generated tags:"
-          echo "${{ steps.meta.outputs.tags }}"
-          echo ""
-          echo "Generated labels:"
-          echo "${{ steps.meta.outputs.labels }}"
+          echo "${{ steps.tags.outputs.tags }}"
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v1
