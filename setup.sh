@@ -199,11 +199,11 @@ deploy_k8s() {
 
     # Deploy dev pod
     log_info "Deploying development pod..."
-    kubectl apply -f ${SCRIPT_DIR}/k8s/02-dev-pod.yaml
+    kubectl apply -f ${SCRIPT_DIR}/k8s/02-dev-statefulset.yaml
 
-    # Wait for deployment to be ready
+    # Wait for statefulset to be ready
     log_info "Waiting for development pod to be ready..."
-    kubectl rollout status deployment/ml-dev -n ${NAMESPACE} --timeout=600s
+    kubectl rollout status statefulset/ml-dev -n ${NAMESPACE} --timeout=600s
 
     log_success "Kubernetes resources deployed successfully"
 }

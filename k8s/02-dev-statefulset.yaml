@@ -1,0 +1,129 @@
+# Generated dev pod manifest - DO NOT EDIT MANUALLY
+# Edit config.env and run generate-manifests.sh instead
+
+# Development StatefulSet with SSH access and GPU support
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ml-dev
+  namespace: ml
+  labels:
+    app: ml-dev
+spec:
+  serviceName: ml-dev
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ml-dev
+  template:
+    metadata:
+      labels:
+        app: ml-dev
+    spec:
+      # Schedule on GPU nodes
+      nodeSelector:
+        node.coreweave.cloud/class: gpu
+
+      containers:
+        - name: dev
+          image: ghcr.io/pamelia/devpod-demo:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 22
+              name: ssh
+            - containerPort: 8888
+              name: jupyter
+            - containerPort: 6006
+              name: tensorboard
+
+          env:
+            # Make all GPUs visible by default (adjust as needed)
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: PYTHONPATH
+              value: "/workspace"
+
+          resources:
+            requests:
+              cpu: "2"
+              memory: "8Gi"
+              # Request 1 GPU for interactive development
+              nvidia.com/gpu: 1
+            limits:
+              cpu: "8"
+              memory: "32Gi"
+              # Limit to 1 GPU for dev work (training jobs can use more)
+              nvidia.com/gpu: 1
+
+          volumeMounts:
+            # Persistent workspace - your code lives here
+            - name: workspace
+              mountPath: /workspace
+            # Datasets mount
+            - name: datasets
+              mountPath: /data
+            # Outputs mount
+            - name: outputs
+              mountPath: /outputs
+            # Cache mount for pip, huggingface, etc
+            - name: cache
+              mountPath: /home/dev/.cache
+            # SSH keys from secret
+            - name: ssh-keys
+              mountPath: /ssh-keys
+              readOnly: true
+
+          # Health checks
+          livenessProbe:
+            tcpSocket:
+              port: 22
+            initialDelaySeconds: 30
+            periodSeconds: 30
+
+          readinessProbe:
+            tcpSocket:
+              port: 22
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: ml-workspace
+        - name: datasets
+          persistentVolumeClaim:
+            claimName: ml-datasets
+        - name: outputs
+          persistentVolumeClaim:
+            claimName: ml-outputs
+        - name: cache
+          persistentVolumeClaim:
+            claimName: ml-cache
+        - name: ssh-keys
+          secret:
+            secretName: ml-dev-ssh-keys
+            defaultMode: 0600
+
+---
+# ClusterIP service for port-forward access
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-dev
+  namespace: ml
+  labels:
+    app: ml-dev
+spec:
+  type: ClusterIP
+  selector:
+    app: ml-dev
+  ports:
+    - name: ssh
+      port: 22
+      targetPort: 22
+    - name: jupyter
+      port: 8888
+      targetPort: 8888
+    - name: tensorboard
+      port: 6006
+      targetPort: 6006

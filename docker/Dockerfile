@@ -1,8 +1,5 @@
 # PyTorch development container with SSH access for remote editing
-# Use --platform flag to target specific architecture
-ARG TARGETPLATFORM
-ARG BUILDPLATFORM
-FROM --platform=${TARGETPLATFORM:-linux/amd64} pytorch/pytorch:2.4.0-cuda12.1-cudnn9-runtime
+FROM nvcr.io/nvidia/pytorch:24.10-py3
 
 # Install system dependencies
 RUN apt-get update && \
@@ -30,29 +27,10 @@ RUN mkdir -p /var/run/sshd /home/dev/.ssh && \
     chmod 0440 /etc/sudoers.d/dev && \
     chown -R dev:dev /home/dev
 
-# Install additional Python packages commonly used in ML
-RUN pip install --no-cache-dir \
-    torchvision \
-    torchaudio \
-    torchmetrics \
-    transformers \
-    datasets \
-    accelerate \
-    wandb \
-    tensorboard \
-    jupyter \
-    jupyterlab \
-    matplotlib \
-    seaborn \
-    pandas \
-    numpy \
-    scipy \
-    scikit-learn \
-    pillow \
-    tqdm \
-    pyyaml \
-    click \
-    rich
+# Copy requirements.txt and install Python packages
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt
 
 # Setup workspace directory
 RUN mkdir -p /workspace && chown -R dev:dev /workspace

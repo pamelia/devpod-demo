@@ -21,10 +21,9 @@ spec:
     spec:
       restartPolicy: Never
 
-      # Uncomment to ensure job runs on your GPU node
-      # nodeSelector:
-      #   kubernetes.io/hostname: your-gpu-node
-      #   gpu: "true"
+      # Schedule on GPU nodes
+      nodeSelector:
+        node.coreweave.cloud/class: gpu
 
       containers:
       - name: trainer
