@@ -298,11 +298,12 @@ This project supports both AMD64 and ARM64 architectures:
 - **Cross-Architecture Development**: Develop on Apple Silicon, deploy to any GPU architecture
 
 ### Base Image
-We use `nvcr.io/nvidia/pytorch:24.10-py3` which provides:
+We use `ghcr.io/coreweave/ml-containers/torch:es-ubuntu-24-dev-2dd65d0-base-cuda12.9.1-ubuntu24.04-torch2.8.0-vision0.23.0-audio2.8.0-abi1` which provides:
 - ✅ Multi-architecture support (AMD64 + ARM64)
-- ✅ CUDA 12.6 support
-- ✅ PyTorch 2.5 with GPU acceleration
+- ✅ CUDA 12.9 support
+- ✅ PyTorch 2.8.0 with GPU acceleration
 - ✅ Pre-optimized for NVIDIA GPUs
+- ✅ Ubuntu 24.04 base with development tools
 
 ## 🐛 Troubleshooting
 
