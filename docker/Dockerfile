@@ -18,7 +18,17 @@ RUN apt-get update && \
     build-essential \
     rsync \
     unzip \
+    locales \
     && rm -rf /var/lib/apt/lists/*
+
+# Configure locale to fix LC_ALL warnings
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen && \
+    update-locale LANG=en_US.UTF-8
+
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 
 # Create dev user and setup SSH (use next available UID)
 RUN mkdir -p /var/run/sshd /home/dev/.ssh && \
