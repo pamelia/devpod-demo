@@ -401,20 +401,16 @@ kubectl apply -f k8s/02-dev-statefulset.yaml
 
 ### Add Python Packages
 
-The CoreWeave PyTorch base image includes most ML packages you'll need (PyTorch, transformers, etc.). For additional packages, install them directly in the dev pod:
+The CoreWeave PyTorch base image includes most ML packages you'll need (PyTorch, transformers, etc.). 
 
-```bash
-# SSH into dev pod
-ssh ml-dev
+For additional packages, add them to the Dockerfile and rebuild the image:
 
-# Install packages (they persist in your workspace)
-pip install --user package-name
-
-# Or install globally if needed
-sudo pip install package-name
+```dockerfile
+# Add to docker/Dockerfile after the base image
+RUN pip install package-name another-package
 ```
 
-If you need packages in the base image, modify the Dockerfile and rebuild:
+Then rebuild and deploy:
 ```bash
 # Use setup.sh for interactive rebuild
 ./setup.sh  # Select option 3: Build and update image only
@@ -422,6 +418,8 @@ If you need packages in the base image, modify the Dockerfile and rebuild:
 # Restart pod with new image
 kubectl rollout restart statefulset/ml-dev -n ml
 ```
+
+**Note**: Avoid installing packages directly in the running pod as they will be lost when the pod restarts.
 
 ### Change Storage Sizes
 
